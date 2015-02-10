@@ -16,6 +16,9 @@ class JsfmtRunner
     atom.workspaceView.command 'atom-jsfmt:format', => @formatCurrent()
     atom.workspaceView.command 'atom-jsfmt:format-all-open-files', => @formatAllOpen()
     
+    # Special command to have another .jsfmtrc for view
+    atom.workspaceView.command 'atom-jsfmt:format-for-view', => @formatCurrentForView()
+    
     # Editor listeners
     atom.workspaceView.eachEditorView @registerEditor
     
@@ -40,8 +43,7 @@ class JsfmtRunner
       if shouldFormat and @editorIsJs editor
         @format(editor)
   
-  
-  @format: (editor) ->
+  @format: (editor, options) ->
     # May not be a view for the editor yet.
     if !editor._jsfmt
       errorView = new ErrorView()
@@ -52,9 +54,11 @@ class JsfmtRunner
     oldJs = buff.getText()
     newJs = ''
     
+    console.log( 'bonjour', options )
+    
     # Attempt to format, log errors
     try
-      newJs = jsfmt.format oldJs
+      newJs = jsfmt.format oldJs, options
     catch error
       console.log 'Jsfmt:', error.message, error
       errorView.setMessage(error.message)
@@ -62,8 +66,17 @@ class JsfmtRunner
     
     # Apply diff only. 
     buff.setTextViaDiff newJs   
-    buff.save() if atom.config.get 'atom-jsfmt.saveAfterFormatting'
-    
+    buff.save() if atom.config.get 'atom-jsfmt.saveAfterFormat'
+
+  @formatCurrentForView: (editor) ->
+    editor = atom.workspace.getActiveEditor()
+    # load the options
+    options = jsfmt.loadConfig()
+    # hard code the options with a tab
+    options.indent.value = '\t'
+    # launch the format
+    @format editor, options if @editorIsJs editor
+  
   
   @formatCurrent: () ->
     editor = atom.workspace.getActiveEditor()
