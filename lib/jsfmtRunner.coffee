@@ -8,6 +8,9 @@ jsfmt = require 'jsfmt'
 fs = require 'fs'
 path = require 'path'
 
+config = require './config'
+
+
 module.exports = 
 class JsfmtRunner
   
@@ -30,19 +33,38 @@ class JsfmtRunner
     if !editor._jsfmt?.errorView
       errorView = new ErrorView()
       editorView.append(errorView)
-    
-      editor._jsfmt = {errorView}
-    
+      editor._jsfmt = {errorView}    
     else
       editorView.append(editor._jsfmt.errorView);
     
-    editor.getBuffer().on 'saved' , =>
+    # hook .onWillSave save for 
+    # see https://github.com/atom/text-buffer/blob/master/src/text-buffer.coffee#L202
+    editor.getBuffer().onWillSave =>
+      console.log('will save event')
+      # hide the errorView
       editor._jsfmt.errorView.hide()
-      shouldFormat = atom.config.get 'atom-jsfmt.formatOnSave' 
-      
-      if shouldFormat and @editorIsJs editor
-        @format(editor)
+
+      # if formatOnSave and 
+      return unless atom.config.get 'atom-jsfmt.formatOnSave'       
+      return unless @editorIsJs editor
+      @formatCurrent()
   
+    # # hook .onDidSave - reformat for view once saved
+    # editor.getBuffer().onDidSave =>
+    #   console.log('did save event')
+    #   # hide the errorView
+    #   editor._jsfmt.errorView.hide()
+    # 
+    #   return unless atom.config.get 'atom-jsfmt.formatOnSave'       
+    #   return unless @editorIsJs editor
+    #   @formatCurrentForView()
+
+    # # hook .onDidReload - reformat on load
+    # editor.getBuffer().onDidReload =>
+    #   return unless atom.config.get 'atom-jsfmt.formatOnSave'  
+    #   return unless @editorIsJs editor
+    #   @formatCurrentForView()
+
   @format: (editor, options) ->
     # May not be a view for the editor yet.
     if !editor._jsfmt
@@ -54,7 +76,11 @@ class JsfmtRunner
     oldJs = buff.getText()
     newJs = ''
     
-    console.log( 'bonjour', options )
+    # if no options is provided, get the one for jsfmt
+    if options? == false
+      filePath = editor.getPath()
+      dirName = require('path').dirname(filePath)
+      options = config.loadConfig('jsfmt', dirName)
     
     # Attempt to format, log errors
     try
@@ -68,15 +94,15 @@ class JsfmtRunner
     buff.setTextViaDiff newJs   
     buff.save() if atom.config.get 'atom-jsfmt.saveAfterFormat'
 
-  @formatCurrentForView: (editor) ->
+  @formatCurrentForView: () ->
     editor = atom.workspace.getActiveEditor()
-    # load the options
-    options = jsfmt.loadConfig()
-    # hard code the options with a tab
-    options.indent.value = '\t'
-    # launch the format
+    
+    # Get the options for jsfmtview
+    filePath = editor.getPath()
+    dirName = require('path').dirname(filePath)
+    options = config.loadConfig('jsfmtview', dirName)
+
     @format editor, options if @editorIsJs editor
-  
   
   @formatCurrent: () ->
     editor = atom.workspace.getActiveEditor()
